@@ -1399,13 +1399,18 @@ function updateCastingCounts() {
 
 document.addEventListener('DOMContentLoaded', () => {
   renderSectionalSeatMap();
+  updateAllSeats();
   updateCastingCounts();
 
   const seatInputs = document.querySelectorAll('.seat-input');
   seatInputs.forEach(input => {
-    input.addEventListener('input', updateCastingCounts);
+    input.addEventListener('input', () => {
+      updateAllSeats();
+      updateCastingCounts();
+    });
   });
 
+  // 백업하기: 파일 내보내기 + LocalStorage 동시 저장
   const btnExport = document.getElementById('btn-export');
   if (btnExport) {
     btnExport.addEventListener('click', () => {
@@ -1415,29 +1420,62 @@ document.addEventListener('DOMContentLoaded', () => {
           seatsData.push({ index, value: input.value.trim() });
         }
       });
-      localStorage.setItem('brahms_seat_backup', JSON.stringify(seatsData));
-      alert('입력된 좌석 정보가 백업(저장)되었습니다.');
+
+      const jsonString = JSON.stringify(seatsData, null, 2);
+
+      // LocalStorage 임시 저장
+      localStorage.setItem('brahms_seat_backup', jsonString);
+
+      // 파일 다운로드
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "brahms_seat_backup.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      alert('좌석 정보가 파일로 다운로드되었습니다.');
     });
   }
 
+  // 불러오기: JSON 파일 읽기
   const btnImport = document.getElementById('btn-import');
   if (btnImport) {
     btnImport.addEventListener('click', () => {
-      const data = localStorage.getItem('brahms_seat_backup');
-      if (!data) {
-        alert('저장된 백업 데이터가 없습니다.');
-        return;
-      }
-      const seatsData = JSON.parse(data);
-      const inputs = document.querySelectorAll('.seat-input');
-      seatsData.forEach(item => {
-        if (inputs[item.index]) {
-          inputs[item.index].value = item.value;
-        }
-      });
-      updateAllSeats();
-      updateCastingCounts();
-      alert('백업된 좌석 데이터를 성공적으로 복구했습니다.');
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.json';
+
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const seatsData = JSON.parse(event.target.result);
+            const inputs = document.querySelectorAll('.seat-input');
+            
+            inputs.forEach(input => input.value = '');
+
+            seatsData.forEach(item => {
+              if (inputs[item.index]) {
+                inputs[item.index].value = item.value;
+              }
+            });
+
+            updateAllSeats();
+            updateCastingCounts();
+            alert('백업 파일에서 데이터를 성공적으로 불러왔습니다.');
+          } catch (err) {
+            alert('올바르지 않은 백업 파일 형식입니다.');
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      fileInput.click();
     });
   }
 });
